@@ -3,6 +3,7 @@ package com.pliki.app.ui
 import android.net.Uri
 import android.os.Environment
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -54,6 +55,11 @@ private val tabs = listOf(
 )
 
 fun NavHostController.goTab(route: String) {
+    // "Start" to zawsze czysty ekran startowy (bez przywracania zapisanego stosu).
+    if (route == Routes.HOME) {
+        if (!popBackStack(Routes.HOME, inclusive = false)) navigate(Routes.HOME)
+        return
+    }
     navigate(route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true
@@ -74,7 +80,12 @@ fun PlikiRoot() {
     val nav = rememberNavController()
     val snackbar = remember { SnackbarHostState() }
     val busy by vm.busy.collectAsState()
-    LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
+    LaunchedEffect(Unit) {
+        vm.messages.collect {
+            // Krótko, żeby nie zasłaniać paska akcji na dole.
+            kotlinx.coroutines.withTimeoutOrNull(2500) { snackbar.showSnackbar(it, duration = SnackbarDuration.Indefinite) }
+        }
+    }
 
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
@@ -84,8 +95,11 @@ fun PlikiRoot() {
         containerColor = PC.Bg,
         contentWindowInsets = WindowInsets.navigationBars,
         snackbarHost = {
-            SnackbarHost(snackbar) {
-                Snackbar(it, containerColor = PC.Surface3, contentColor = PC.Text, actionColor = PC.AccentText)
+            SnackbarHost(snackbar) { data ->
+                Snackbar(
+                    data, containerColor = PC.Surface3, contentColor = PC.Text, actionColor = PC.AccentText,
+                    modifier = Modifier.clickable { data.dismiss() },
+                )
             }
         },
         bottomBar = {

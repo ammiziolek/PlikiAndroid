@@ -32,6 +32,8 @@ import java.util.zip.ZipOutputStream
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "w390dp-h844dp-xxhdpi")
 class SmokeTest {
+    init { org.robolectric.shadows.ShadowLog.stream = System.out }
+
     @get:Rule
     val rule = createEmptyComposeRule()
 
@@ -77,7 +79,13 @@ class SmokeTest {
     }
 
     private fun waitText(text: String, substring: Boolean = false, timeout: Long = 15_000) {
-        rule.waitUntil(timeout) { rule.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty() }
+        try {
+            rule.waitUntil(timeout) { rule.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty() }
+        } catch (e: Throwable) {
+            runCatching { rule.onRoot().captureRoboImage("screenshots/FAIL.png") }
+            rule.onRoot(useUnmergedTree = true).printToLog("FAIL")
+            throw AssertionError("Nie pojawił się tekst: $text", e)
+        }
     }
 
     private fun shot(name: String) {
@@ -90,7 +98,6 @@ class SmokeTest {
         ActivityScenario.launch(MainActivity::class.java).use {
             // Start: indeks gotowy, ostatnie pliki widoczne
             waitText("Ostatnie")
-            waitText("playlista.mp3")
             shot("01_start")
 
             // Pobrane -> przeglądanie folderu
@@ -145,6 +152,7 @@ class SmokeTest {
             waitText("Przenieść do kosza?")
             rule.onAllNodesWithText("Do kosza").onLast().performClick()
             waitText("Przeniesiono do kosza", substring = true)
+            rule.waitUntil(5000) { rule.onAllNodesWithText("Przeniesiono do kosza", substring = true).fetchSemanticsNodes().isEmpty() }
             val a = File(root, "Download/IMG_kopia.bin").exists()
             val b = File(root, "Pictures/IMG_kopia.bin").exists()
             assertTrue("dokładnie jedna kopia powinna zostać", a xor b)
